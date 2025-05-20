@@ -1,34 +1,10 @@
-// 定義七段顯示器各段對應 Arduino 腳位 (請依實際接線修改)
-const int segA = 2;
-const int segB = 3;
-const int segC = 4;
-const int segD = 5;
-const int segE = 6;
-const int segF = 7;
-const int segG = 8;
-const int leftDigit = 9;   // 左位數控制腳 (PNP 電晶體基極)
-const int rightDigit = 10; // 右位數控制腳 (PNP 電晶體基極)
-const int tempPin = A0;
+#include "Global_define.h"
 
-// 共陽極七段顯示器數字編碼 (0=亮, 1=暗)
-const byte digitPattern[10] = {
-    // ABCDEFG 
-    0b0000001, // 0
-    0b1111001, // 1 (B+C 亮)
-    0b0010010, // 2
-    0b0000110, // 3
-    0b1001100, // 4
-    0b0100100, // 5
-    0b0100000, // 6
-    0b0001111, // 7
-    0b0000000, // 8
-    0b0000100  // 9
-};
-
-
+void displayNumber(int tens,int ones,bool tens_dot,bool ones_dot);
 
 void displaySetup(){
       // 設定段控制腳為輸出
+    pinMode(segDot, OUTPUT);
     pinMode(segA, OUTPUT);
     pinMode(segB, OUTPUT);
     pinMode(segC, OUTPUT);
@@ -46,11 +22,43 @@ void displaySetup(){
     digitalWrite(rightDigit, HIGH); // 共陽極需低電平開啟
 }
 
-void setSegments(int number) {
-    number = constrain(number, 0, 9);
+
+void updateDisplay(){
+    static unsigned long updateDisplay_lastTime = 0;
+
+    displayNumber(display_currentNumber[1],display_currentNumber[0],display_currentDot[1],display_currentDot[0]);
+
+    // 跑馬燈頻率控制 (約 ˙750ms 切換一次位數)
+    if(millis() - updateDisplay_lastTime < 750) return;
+    updateDisplay_lastTime = millis();
+
+    if(display_position == 5) display_position = 0;
+    else display_position ++ ;
+
+    if(mode == ECHO){
+        display_currentNumber[1] = echoText[display_position];
+        display_currentNumber[0] = echoText[display_position+1];
+        display_currentDot[1] = echoText_dot[display_position];
+        display_currentDot[0] = echoText_dot[display_position+1];
+    }
+    else if(mode == TEMPETURE){
+        display_currentNumber[1] = tempText[display_position];
+        display_currentNumber[0] = tempText[display_position+1];
+        display_currentDot[1] = tempText_dot[display_position];
+        display_currentDot[0] = tempText_dot[display_position+1];
+    }
+    // Serial.print(display_currentNumber[1]);
+    // Serial.print(display_currentNumber[0]);
+    // Serial.print(display_currentDot[1]);
+    // Serial.println(display_currentDot[0]);
+}
+
+void setSegments(int number,bool dot) {
+    // number = constrain(number, 0, 9);
     byte pattern = digitPattern[number];
     
     // 依編碼設定各段 (注意高位元對應段順序)
+    digitalWrite(segDot, !dot);
     digitalWrite(segA, bitRead(pattern, 6)); // A 對應 bit6
     digitalWrite(segB, bitRead(pattern, 5)); // B 對應 bit5
     digitalWrite(segC, bitRead(pattern, 4)); // C 對應 bit4
@@ -60,7 +68,7 @@ void setSegments(int number) {
     digitalWrite(segG, bitRead(pattern, 0)); // G 對應 bit0
 }
 
-void displayNumber(int tens,int ones) {
+void displayNumber(int tens,int ones,bool tens_dot,bool ones_dot) {
     static unsigned long display_lastTime = 0;
     static int digitPos = 0;
     
@@ -76,11 +84,11 @@ void displayNumber(int tens,int ones) {
   //  Serial.println(tens);
     // 交替顯示位數
     if(digitPos == 0) {
-      setSegments(tens);      // 設定十位數段碼
+      setSegments(tens , tens_dot);      // 設定十位數段碼
       digitalWrite(leftDigit, LOW); // 開啟左位數
       digitPos = 1;
     } else {
-      setSegments(ones);       // 設定個位數段碼
+      setSegments(ones , ones_dot);       // 設定個位數段碼
       digitalWrite(rightDigit, LOW); // 開啟右位數
       digitPos = 0;
     }
